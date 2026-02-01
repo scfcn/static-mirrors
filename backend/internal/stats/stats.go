@@ -89,36 +89,93 @@ func NewRedisStats(redisConfig config.RedisConfig) (*RedisStats, error) {
 
 // RecordRequest 记录请求到Redis
 func (s *RedisStats) RecordRequest(url string, source string, bytes int64, duration time.Duration) {
+	// 检查客户端是否为nil
+	if s == nil || s.client == nil || s.ctx == nil {
+		log.Printf("RedisStats is not properly initialized")
+		return
+	}
+
 	// 记录请求数
-	s.client.Incr(s.ctx, "stats:requests")
+	err := s.client.Incr(s.ctx, "stats:requests").Err()
+	if err != nil {
+		log.Printf("记录请求数失败: %v", err)
+	}
 
 	// 记录流量
-	s.client.IncrBy(s.ctx, "stats:traffic", bytes)
+	err = s.client.IncrBy(s.ctx, "stats:traffic", bytes).Err()
+	if err != nil {
+		log.Printf("记录流量失败: %v", err)
+	}
 
 	// 记录源站请求数
-	s.client.Incr(s.ctx, fmt.Sprintf("stats:sources:%s", source))
+	sourceKey := fmt.Sprintf("stats:sources:%s", source)
+	err = s.client.Incr(s.ctx, sourceKey).Err()
+	if err != nil {
+		log.Printf("记录源站请求数失败: %v", err)
+	}
 
 	// 记录每日统计
 	date := time.Now().Format("2006-01-02")
-	s.client.Incr(s.ctx, fmt.Sprintf("stats:daily:%s:requests", date))
-	s.client.IncrBy(s.ctx, fmt.Sprintf("stats:daily:%s:traffic", date), bytes)
+	dailyRequestsKey := fmt.Sprintf("stats:daily:%s:requests", date)
+	dailyTrafficKey := fmt.Sprintf("stats:daily:%s:traffic", date)
+
+	err = s.client.Incr(s.ctx, dailyRequestsKey).Err()
+	if err != nil {
+		log.Printf("记录每日请求数失败: %v", err)
+	}
+
+	err = s.client.IncrBy(s.ctx, dailyTrafficKey, bytes).Err()
+	if err != nil {
+		log.Printf("记录每日流量失败: %v", err)
+	}
 
 	// 设置过期时间
-	s.client.Expire(s.ctx, "stats:requests", 7*24*time.Hour)
-	s.client.Expire(s.ctx, "stats:traffic", 7*24*time.Hour)
-	s.client.Expire(s.ctx, fmt.Sprintf("stats:sources:%s", source), 7*24*time.Hour)
-	s.client.Expire(s.ctx, fmt.Sprintf("stats:daily:%s:requests", date), 30*24*time.Hour)
-	s.client.Expire(s.ctx, fmt.Sprintf("stats:daily:%s:traffic", date), 30*24*time.Hour)
+	err = s.client.Expire(s.ctx, "stats:requests", 7*24*time.Hour).Err()
+	if err != nil {
+		log.Printf("设置请求数过期时间失败: %v", err)
+	}
+
+	err = s.client.Expire(s.ctx, "stats:traffic", 7*24*time.Hour).Err()
+	if err != nil {
+		log.Printf("设置流量过期时间失败: %v", err)
+	}
+
+	err = s.client.Expire(s.ctx, sourceKey, 7*24*time.Hour).Err()
+	if err != nil {
+		log.Printf("设置源站请求数过期时间失败: %v", err)
+	}
+
+	err = s.client.Expire(s.ctx, dailyRequestsKey, 30*24*time.Hour).Err()
+	if err != nil {
+		log.Printf("设置每日请求数过期时间失败: %v", err)
+	}
+
+	err = s.client.Expire(s.ctx, dailyTrafficKey, 30*24*time.Hour).Err()
+	if err != nil {
+		log.Printf("设置每日流量过期时间失败: %v", err)
+	}
 }
 
 // GetStats 获取Redis统计信息
 func (s *RedisStats) GetStats() (map[string]interface{}, error) {
+	// 检查客户端是否为nil
+	if s == nil || s.client == nil || s.ctx == nil {
+		log.Printf("RedisStats is not properly initialized")
+		return map[string]interface{}{
+			"total_requests": 0,
+			"total_traffic":  0,
+			"today_requests": 0,
+			"today_traffic":  0,
+		}, nil
+	}
+
 	// 获取总请求数
 	requests, err := s.client.Get(s.ctx, "stats:requests").Int64()
 	if err == redis.Nil {
 		requests = 0
 	} else if err != nil {
-		return nil, err
+		log.Printf("获取请求数失败: %v", err)
+		requests = 0
 	}
 
 	// 获取总流量
@@ -126,7 +183,8 @@ func (s *RedisStats) GetStats() (map[string]interface{}, error) {
 	if err == redis.Nil {
 		traffic = 0
 	} else if err != nil {
-		return nil, err
+		log.Printf("获取流量失败: %v", err)
+		traffic = 0
 	}
 
 	// 获取今日请求数
@@ -135,7 +193,8 @@ func (s *RedisStats) GetStats() (map[string]interface{}, error) {
 	if err == redis.Nil {
 		todayRequests = 0
 	} else if err != nil {
-		return nil, err
+		log.Printf("获取今日请求数失败: %v", err)
+		todayRequests = 0
 	}
 
 	// 获取今日流量
@@ -143,7 +202,8 @@ func (s *RedisStats) GetStats() (map[string]interface{}, error) {
 	if err == redis.Nil {
 		todayTraffic = 0
 	} else if err != nil {
-		return nil, err
+		log.Printf("获取今日流量失败: %v", err)
+		todayTraffic = 0
 	}
 
 	return map[string]interface{}{
@@ -156,10 +216,17 @@ func (s *RedisStats) GetStats() (map[string]interface{}, error) {
 
 // GetTopSources 获取Redis热门源站
 func (s *RedisStats) GetTopSources() ([]string, error) {
+	// 检查客户端是否为nil
+	if s == nil || s.client == nil || s.ctx == nil {
+		log.Printf("RedisStats is not properly initialized")
+		return []string{}, nil
+	}
+
 	// 获取所有源站键
 	keys, err := s.client.Keys(s.ctx, "stats:sources:*").Result()
 	if err != nil {
-		return nil, err
+		log.Printf("获取源站键失败: %v", err)
+		return []string{}, nil
 	}
 
 	// 构建源站映射
@@ -192,22 +259,36 @@ func (s *RedisStats) GetTopSources() ([]string, error) {
 
 // GetTraffic 获取Redis流量
 func (s *RedisStats) GetTraffic() (int64, error) {
+	// 检查客户端是否为nil
+	if s == nil || s.client == nil || s.ctx == nil {
+		log.Printf("RedisStats is not properly initialized")
+		return 0, nil
+	}
+
 	traffic, err := s.client.Get(s.ctx, "stats:traffic").Int64()
 	if err == redis.Nil {
 		return 0, nil
 	} else if err != nil {
-		return 0, err
+		log.Printf("获取流量失败: %v", err)
+		return 0, nil
 	}
 	return traffic, nil
 }
 
 // GetRequests 获取Redis请求数
 func (s *RedisStats) GetRequests() (int64, error) {
+	// 检查客户端是否为nil
+	if s == nil || s.client == nil || s.ctx == nil {
+		log.Printf("RedisStats is not properly initialized")
+		return 0, nil
+	}
+
 	requests, err := s.client.Get(s.ctx, "stats:requests").Int64()
 	if err == redis.Nil {
 		return 0, nil
 	} else if err != nil {
-		return 0, err
+		log.Printf("获取请求数失败: %v", err)
+		return 0, nil
 	}
 	return requests, nil
 }
@@ -246,6 +327,12 @@ func createTables(db *sql.DB) error {
 
 // RecordRequest 记录请求到SQLite
 func (s *SQLiteStats) RecordRequest(url string, source string, bytes int64, duration time.Duration) {
+	// 检查数据库是否为nil
+	if s == nil || s.db == nil {
+		log.Printf("SQLiteStats is not properly initialized")
+		return
+	}
+
 	// 记录请求
 	_, err := s.db.Exec(
 		"INSERT INTO requests (url, source, bytes, duration) VALUES (?, ?, ?, ?)",
@@ -269,18 +356,31 @@ func (s *SQLiteStats) RecordRequest(url string, source string, bytes int64, dura
 
 // GetStats 获取SQLite统计信息
 func (s *SQLiteStats) GetStats() (map[string]interface{}, error) {
+	// 检查数据库是否为nil
+	if s == nil || s.db == nil {
+		log.Printf("SQLiteStats is not properly initialized")
+		return map[string]interface{}{
+			"total_requests": 0,
+			"total_traffic":  0,
+			"today_requests": 0,
+			"today_traffic":  0,
+		}, nil
+	}
+
 	// 获取总请求数
 	var requests int64
 	err := s.db.QueryRow("SELECT COUNT(*) FROM requests").Scan(&requests)
 	if err != nil {
-		return nil, err
+		log.Printf("获取总请求数失败: %v", err)
+		requests = 0
 	}
 
 	// 获取总流量
 	var traffic int64
 	err = s.db.QueryRow("SELECT COALESCE(SUM(bytes), 0) FROM requests").Scan(&traffic)
 	if err != nil {
-		return nil, err
+		log.Printf("获取总流量失败: %v", err)
+		traffic = 0
 	}
 
 	// 获取今日请求数
@@ -290,7 +390,8 @@ func (s *SQLiteStats) GetStats() (map[string]interface{}, error) {
 	if err == sql.ErrNoRows {
 		todayRequests = 0
 	} else if err != nil {
-		return nil, err
+		log.Printf("获取今日请求数失败: %v", err)
+		todayRequests = 0
 	}
 
 	// 获取今日流量
@@ -299,7 +400,8 @@ func (s *SQLiteStats) GetStats() (map[string]interface{}, error) {
 	if err == sql.ErrNoRows {
 		todayTraffic = 0
 	} else if err != nil {
-		return nil, err
+		log.Printf("获取今日流量失败: %v", err)
+		todayTraffic = 0
 	}
 
 	return map[string]interface{}{
@@ -312,11 +414,18 @@ func (s *SQLiteStats) GetStats() (map[string]interface{}, error) {
 
 // GetTopSources 获取SQLite热门源站
 func (s *SQLiteStats) GetTopSources() ([]string, error) {
+	// 检查数据库是否为nil
+	if s == nil || s.db == nil {
+		log.Printf("SQLiteStats is not properly initialized")
+		return []string{}, nil
+	}
+
 	rows, err := s.db.Query(
 		"SELECT source, COUNT(*) as count FROM requests GROUP BY source ORDER BY count DESC LIMIT 5",
 	)
 	if err != nil {
-		return nil, err
+		log.Printf("获取热门源站失败: %v", err)
+		return []string{}, nil
 	}
 	defer rows.Close()
 
@@ -325,7 +434,8 @@ func (s *SQLiteStats) GetTopSources() ([]string, error) {
 		var source string
 		var count int
 		if err := rows.Scan(&source, &count); err != nil {
-			return nil, err
+			log.Printf("扫描热门源站失败: %v", err)
+			continue
 		}
 		sources = append(sources, source)
 	}
@@ -335,20 +445,34 @@ func (s *SQLiteStats) GetTopSources() ([]string, error) {
 
 // GetTraffic 获取SQLite流量
 func (s *SQLiteStats) GetTraffic() (int64, error) {
+	// 检查数据库是否为nil
+	if s == nil || s.db == nil {
+		log.Printf("SQLiteStats is not properly initialized")
+		return 0, nil
+	}
+
 	var traffic int64
 	err := s.db.QueryRow("SELECT COALESCE(SUM(bytes), 0) FROM requests").Scan(&traffic)
 	if err != nil {
-		return 0, err
+		log.Printf("获取流量失败: %v", err)
+		return 0, nil
 	}
 	return traffic, nil
 }
 
 // GetRequests 获取SQLite请求数
 func (s *SQLiteStats) GetRequests() (int64, error) {
+	// 检查数据库是否为nil
+	if s == nil || s.db == nil {
+		log.Printf("SQLiteStats is not properly initialized")
+		return 0, nil
+	}
+
 	var requests int64
 	err := s.db.QueryRow("SELECT COUNT(*) FROM requests").Scan(&requests)
 	if err != nil {
-		return 0, err
+		log.Printf("获取请求数失败: %v", err)
+		return 0, nil
 	}
 	return requests, nil
 }

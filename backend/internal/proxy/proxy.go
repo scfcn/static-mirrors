@@ -117,25 +117,25 @@ func (p *Proxy) HandleMirror(c *gin.Context) {
 }
 
 // HandlePathProxy 处理路径代理请求
-func (p *Proxy) HandlePathProxy(c *gin.Context, source string, path string) {
-	// 验证源站是否在白名单中
-	if !p.isValidSource(source) {
-		c.JSON(403, gin.H{"error": "不支持的源站"})
-		return
-	}
-
-	// 构建目标URL
-	targetURL := fmt.Sprintf("https://%s%s", source, path)
-
-	// 验证URL是否被封禁
-	if p.isBlockedURL(targetURL) {
-		c.JSON(403, gin.H{"error": "该URL已被封禁"})
+func (p *Proxy) HandlePathProxy(c *gin.Context, proxyPath string) {
+	// 如果路径为空或根路径，返回前端页面
+	if proxyPath == "" || proxyPath == "/" {
+		c.File("./frontend/dist/index.html")
 		return
 	}
 
 	// 验证路径是否被封禁
-	if p.isBlockedPath(path) {
+	if p.isBlockedPath(proxyPath) {
 		c.JSON(403, gin.H{"error": "该路径已被封禁"})
+		return
+	}
+
+	// 构建目标URL（使用cdn.jsdelivr.net作为默认源站）
+	targetURL := fmt.Sprintf("https://cdn.jsdelivr.net%s", proxyPath)
+
+	// 验证URL是否被封禁
+	if p.isBlockedURL(targetURL) {
+		c.JSON(403, gin.H{"error": "该URL已被封禁"})
 		return
 	}
 
@@ -154,7 +154,7 @@ func (p *Proxy) HandlePathProxy(c *gin.Context, source string, path string) {
 	}
 
 	// 设置正确的Host头
-	req.Host = source
+	req.Host = "cdn.jsdelivr.net"
 
 	// 发送请求到源站
 	resp, err := p.client.Do(req)

@@ -94,8 +94,10 @@ func registerRoutes(r *gin.Engine) {
 		adminService.RegisterRoutes(r.Group("/api"))
 	}
 
-	// 静态文件服务
-	r.Static("/static", "./frontend/dist")
+	// 静态文件服务 - 从根路径提供前端资源
+	r.Static("/assets", "./frontend/dist/assets")
+	r.StaticFile("/vite.svg", "./frontend/dist/vite.svg")
+	r.StaticFile("/favicon.ico", "./frontend/dist/favicon.ico")
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -251,65 +253,38 @@ func registerRoutes(r *gin.Engine) {
 		})
 	}
 
-	// 镜像服务路由 - 支持查询参数模式和路径模式
-	r.Any("/mirror", func(c *gin.Context) {
+	// 路径代理模式 - 支持直接路径访问（不包含域名）
+	r.Any("/*proxyPath", func(c *gin.Context) {
 		start := time.Now()
 
-		// 获取目标URL
-		targetURL := c.Query("url")
-		if targetURL == "" {
-			c.JSON(400, gin.H{"error": "缺少URL参数"})
+		// 获取代理路径
+		proxyPath := c.Param("proxyPath")
+
+		// 如果路径为空或根路径，返回前端页面
+		if proxyPath == "" || proxyPath == "/" {
+			c.File("./frontend/dist/index.html")
 			return
 		}
-
-		// 解析URL获取源站
-		parsedURL, err := url.Parse(targetURL)
-		if err != nil {
-			c.JSON(400, gin.H{"error": "无效的URL格式"})
-			return
-		}
-
-		source := parsedURL.Host
-
-		// 处理镜像请求
-		proxyService.HandleMirror(c)
-
-		// 记录访问统计
-		if statsService != nil {
-			duration := time.Since(start)
-			bytes := int64(0)
-			statsService.RecordRequest(targetURL, source, bytes, duration)
-		}
-	})
-
-	// 路径代理模式 - 支持直接路径访问
-	r.Any("/:source/*path", func(c *gin.Context) {
-		start := time.Now()
-
-		// 获取源站和路径
-		source := c.Param("source")
-		path := c.Param("path")
 
 		// 处理路径代理请求
-		proxyService.HandlePathProxy(c, source, path)
+		proxyService.HandlePathProxy(c, proxyPath)
 
 		// 记录访问统计
 		if statsService != nil {
 			duration := time.Since(start)
 			bytes := int64(0)
-			targetURL := fmt.Sprintf("https://%s%s", source, path)
-			statsService.RecordRequest(targetURL, source, bytes, duration)
+			targetURL := fmt.Sprintf("https://cdn.jsdelivr.net%s", proxyPath)
+			statsService.RecordRequest(targetURL, "cdn.jsdelivr.net", bytes, duration)
 		}
 	})
 
 	// 前端页面服务 - 必须放在最后
 	r.NoRoute(func(c *gin.Context) {
-		// 如果不是API请求、镜像请求、健康检查或缓存刷新，返回前端页面
+		// 如果不是API请求、健康检查或缓存刷新，返回前端页面
 		if !strings.HasPrefix(c.Request.URL.Path, "/api") &&
-			!strings.HasPrefix(c.Request.URL.Path, "/mirror") &&
 			!strings.HasPrefix(c.Request.URL.Path, "/health") &&
 			!strings.HasPrefix(c.Request.URL.Path, "/purge") &&
-			!strings.HasPrefix(c.Request.URL.Path, "/static") {
+			!strings.HasPrefix(c.Request.URL.Path, "/assets") {
 			c.File("./frontend/dist/index.html")
 			return
 		}
