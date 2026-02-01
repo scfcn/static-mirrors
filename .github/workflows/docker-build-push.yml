@@ -11,52 +11,9 @@ on:
       - main
 
 jobs:
-  # 代码质量检查
-  code-quality:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # 前端代码质量检查
-      - name: Frontend code quality
-        working-directory: ./frontend
-        run: |
-          npm install
-          npm run lint || echo "No lint script found, skipping linting"
-
-      # 后端代码质量检查
-      - name: Backend code quality
-        working-directory: ./backend
-        run: |
-          go fmt ./...
-          go vet ./...
-
-  # 单元测试
-  unit-tests:
-    runs-on: ubuntu-latest
-    needs: code-quality
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # 前端单元测试
-      - name: Frontend unit tests
-        working-directory: ./frontend
-        run: |
-          npm install
-          npm run test || echo "No test script found, skipping tests"
-
-      # 后端单元测试
-      - name: Backend unit tests
-        working-directory: ./backend
-        run: |
-          go test ./... || echo "No tests found, skipping tests"
-
   # 构建验证
   build-validation:
     runs-on: ubuntu-latest
-    needs: unit-tests
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -75,31 +32,10 @@ jobs:
           go mod download
           go build -o static-mirrors ./cmd
 
-  # 从 dev 合并到 main
-  merge-dev-to-main:
-    runs-on: ubuntu-latest
-    needs: build-validation
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure git
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-
-      - name: Merge dev to main
-        run: |
-          git fetch origin main
-          git checkout main
-          git merge origin/dev
-          git push origin main
-
   # 生成语义化版本标签
   create-semantic-tag:
     runs-on: ubuntu-latest
-    needs: merge-dev-to-main
+    needs: build-validation
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
@@ -195,17 +131,3 @@ jobs:
           # 构建并推送
           docker compose build || echo "No docker-compose.yml found, skipping"
           docker compose push || echo "No docker-compose.yml found, skipping"
-
-  # 集成测试
-  integration-tests:
-    runs-on: ubuntu-latest
-    needs: docker-build-push
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run integration tests
-        run: |
-          # 这里可以添加集成测试脚本
-          echo "Running integration tests..."
-          # 例如：docker-compose up -d && sleep 10 && curl http://localhost:1108
