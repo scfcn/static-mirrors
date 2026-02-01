@@ -1,0 +1,64 @@
+# 应用配置
+app:
+  name: "前端文件公益镜像服务"
+  version: "1.0.0"
+  host: "0.0.0.0"
+  port: 1108
+  debug: false
+
+# 源站配置
+sources:
+  - name: "jsdelivr"
+    domain: "cdn.jsdelivr.net"
+    enabled: true
+  - name: "cdnjs"
+    domain: "cdnjs.cloudflare.com"
+    enabled: true
+  - name: "ghcr"
+    domain: "ghcr.io"
+    enabled: true
+  - name: "docker"
+    domain: "registry-1.docker.io"
+    enabled: true
+  - name: "unpkg"
+    domain: "unpkg.com"
+    enabled: true
+
+# 缓存配置
+cache:
+  enabled: true
+  type: "redis"  # redis 或 memory
+  redis:
+    addr: "localhost:6379"
+    password: ""
+    db: 0
+  memory:
+    size: 1024  # MB
+  ttl:
+    default: 3600  # 秒
+    max: 86400    # 秒
+
+# 统计配置
+stats:
+  enabled: true
+  type: "sqlite"  # sqlite 或 redis
+  sqlite:
+    path: "stats.db"
+  redis:
+    addr: "localhost:6379"
+    password: ""
+    db: 1
+
+# 安全配置
+security:
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+  blocked_urls:
+    - "*.malicious.com"
+    - "/harmful/path"
+
+# 日志配置
+log:
+  level: "info"
+  format: "json"

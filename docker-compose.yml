@@ -1,0 +1,143 @@
+version: '3.8'
+
+# 自定义网络配置
+networks:
+  static-mirrors-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+    name: static-mirrors-network
+
+# 数据卷配置
+volumes:
+  redis-data:
+    name: static-mirrors-redis-data
+  backend-config:
+    name: static-mirrors-backend-config
+  backend-stats:
+    name: static-mirrors-backend-stats
+
+# 服务配置
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+        - BUILD_DATE=${BUILD_DATE:-unknown}
+    image: static-mirrors-backend:latest
+    container_name: static-mirrors-backend
+    ports:
+      - "1108:1108"
+    networks:
+      - static-mirrors-network
+    volumes:
+      - backend-config:/app/config
+      - backend-stats:/app/data
+      - ./config/config.yaml:/app/config/config.yaml:ro
+    environment:
+      - GIN_MODE=release
+      - TZ=Asia/Shanghai
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=0
+      - STATS_DB_PATH=/app/data/stats.db
+      - CACHE_TYPE=${CACHE_TYPE:-redis}
+      - CACHE_TTL=${CACHE_TTL:-3600}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart:
+      condition: on-failure
+      max_attempts: 5
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:1108/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "512M"
+        reservations:
+          cpus: "0.5"
+          memory: "256M"
+
+  # Redis服务（用于缓存和统计）
+  redis:
+    image: redis:7-alpine
+    container_name: static-mirrors-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - static-mirrors-network
+    volumes:
+      - redis-data:/data
+    environment:
+      - TZ=Asia/Shanghai
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:-}"
+    restart:
+      condition: on-failure
+      max_attempts: 3
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+        reservations:
+          cpus: "0.25"
+          memory: "128M"
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: static-mirrors-frontend:latest
+    container_name: static-mirrors-frontend
+    ports:
+      - "3000:3000"
+    networks:
+      - static-mirrors-network
+    environment:
+      - TZ=Asia/Shanghai
+      - NGINX_HOST=0.0.0.0
+      - NGINX_PORT=3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart:
+      condition: on-failure
+      max_attempts: 3
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+        reservations:
+          cpus: "0.25"
+          memory: "128M"
