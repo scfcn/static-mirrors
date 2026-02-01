@@ -10,6 +10,8 @@ networks:
 
 # 数据卷配置
 volumes:
+  redis-data:
+    name: static-mirrors-redis-data
   backend-stats:
     name: static-mirrors-backend-stats
 
@@ -29,11 +31,16 @@ services:
     environment:
       - GIN_MODE=release
       - TZ=Asia/Shanghai
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-''}
+      - REDIS_DB=0
       - STATS_DB_PATH=/app/data/stats.db
-      - CACHE_TYPE=memory
+      - CACHE_TYPE=${CACHE_TYPE:-redis}
       - CACHE_TTL=${CACHE_TTL:-3600}
+    depends_on:
+      - redis
     restart: no
-    entrypoint: ["/bin/sh", "-c", "ls -la / && ls -la /config && ls -la /app && find /app -name 'main' -type f && cat /app/main 2>/dev/null || echo 'No main file found' && sleep 3600"]
+    entrypoint: ["/bin/sh", "-c", "ls -la / && ls -la /config && ls -la /app && if [ ! -f /config/config.yaml ]; then echo 'Config file not found, downloading...' && mkdir -p /config && wget -O /config/config.yaml https://raw.githubusercontent.com/scfcn/static-mirrors/refs/heads/main/config/config.yaml || echo 'Failed to download config file'; fi && if [ -f /app/static-mirrors ]; then chmod +x /app/static-mirrors && /app/static-mirrors; else echo 'No static-mirrors executable found' && sleep 3600; fi"]
     deploy:
       resources:
         limits:
@@ -42,3 +49,36 @@ services:
         reservations:
           cpus: "0.5"
           memory: "256M"
+
+  # Redis服务（用于缓存和统计）
+  redis:
+    image: redis:7-alpine
+    container_name: static-mirrors-redis
+    networks:
+      - static-mirrors-network
+    volumes:
+      - redis-data:/data
+    environment:
+      - TZ=Asia/Shanghai
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-''}
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:-''}"
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+        reservations:
+          cpus: "0.25"
+          memory: "128M"
