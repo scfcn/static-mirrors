@@ -27,11 +27,7 @@ sources:
 # 缓存配置
 cache:
   enabled: true
-  type: "redis"  # redis 或 memory
-  redis:
-    addr: "localhost:6379"
-    password: ""
-    db: 0
+  type: "memory"  # memory
   memory:
     size: 1024  # MB
   ttl:
@@ -41,13 +37,9 @@ cache:
 # 统计配置
 stats:
   enabled: true
-  type: "sqlite"  # sqlite 或 redis
+  type: "sqlite"  # sqlite
   sqlite:
     path: "stats.db"
-  redis:
-    addr: "localhost:6379"
-    password: ""
-    db: 1
 
 # 安全配置
 security:

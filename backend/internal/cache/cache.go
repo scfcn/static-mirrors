@@ -1,15 +1,12 @@
 package cache
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
 	"static-mirrors/pkg/config"
-
-	"github.com/go-redis/redis/v8"
 )
 
 // Cache 缓存接口
@@ -18,12 +15,6 @@ type Cache interface {
 	Set(key string, value []byte, ttl time.Duration) error
 	Delete(key string) error
 	Exists(key string) (bool, error)
-}
-
-// RedisCache Redis缓存实现
-type RedisCache struct {
-	client *redis.Client
-	ctx    context.Context
 }
 
 // MemoryCache 内存缓存实现
@@ -46,35 +37,11 @@ func NewCache(cfg config.Config) (Cache, error) {
 	}
 
 	switch cfg.Cache.Type {
-	case "redis":
-		return NewRedisCache(cfg.Cache.Redis)
 	case "memory":
 		return NewMemoryCache(cfg.Cache.Memory.Size), nil
 	default:
 		return nil, fmt.Errorf("不支持的缓存类型: %s", cfg.Cache.Type)
 	}
-}
-
-// NewRedisCache 创建Redis缓存实例
-func NewRedisCache(redisConfig config.RedisConfig) (*RedisCache, error) {
-	client := redis.NewClient(&redis.Options{
-		Addr:     redisConfig.Addr,
-		Password: redisConfig.Password,
-		DB:       redisConfig.DB,
-	})
-
-	ctx := context.Background()
-	
-	// 测试连接
-	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("连接Redis失败: %w", err)
-	}
-
-	log.Println("Redis缓存连接成功")
-	return &RedisCache{
-		client: client,
-		ctx:    ctx,
-	}, nil
 }
 
 // NewMemoryCache 创建内存缓存实例
@@ -89,36 +56,6 @@ func NewMemoryCache(size int) *MemoryCache {
 
 	log.Println("内存缓存初始化成功")
 	return cache
-}
-
-// Get 从Redis缓存获取数据
-func (c *RedisCache) Get(key string) ([]byte, error) {
-	val, err := c.client.Get(c.ctx, key).Bytes()
-	if err == redis.Nil {
-		return nil, nil // 缓存未命中
-	} else if err != nil {
-		return nil, err
-	}
-	return val, nil
-}
-
-// Set 向Redis缓存设置数据
-func (c *RedisCache) Set(key string, value []byte, ttl time.Duration) error {
-	return c.client.Set(c.ctx, key, value, ttl).Err()
-}
-
-// Delete 从Redis缓存删除数据
-func (c *RedisCache) Delete(key string) error {
-	return c.client.Del(c.ctx, key).Err()
-}
-
-// Exists 检查Redis缓存中是否存在键
-func (c *RedisCache) Exists(key string) (bool, error) {
-	result, err := c.client.Exists(c.ctx, key).Result()
-	if err != nil {
-		return false, err
-	}
-	return result > 0, nil
 }
 
 // Get 从内存缓存获取数据

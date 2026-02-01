@@ -37,16 +37,8 @@ type SourceConfig struct {
 type CacheConfig struct {
 	Enabled bool          `yaml:"enabled"`
 	Type    string        `yaml:"type"`
-	Redis   RedisConfig   `yaml:"redis"`
 	Memory  MemoryConfig  `yaml:"memory"`
 	TTL     CacheTTLConfig `yaml:"ttl"`
-}
-
-// RedisConfig Redis缓存配置
-type RedisConfig struct {
-	Addr     string `yaml:"addr"`
-	Password string `yaml:"password"`
-	DB       int    `yaml:"db"`
 }
 
 // MemoryConfig 内存缓存配置
@@ -65,7 +57,6 @@ type StatsConfig struct {
 	Enabled bool          `yaml:"enabled"`
 	Type    string        `yaml:"type"`
 	SQLite  SQLiteConfig  `yaml:"sqlite"`
-	Redis   RedisConfig   `yaml:"redis"`
 }
 
 // SQLiteConfig SQLite配置
