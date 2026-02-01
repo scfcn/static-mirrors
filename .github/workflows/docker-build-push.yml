@@ -26,7 +26,20 @@ jobs:
         run: |
           git fetch origin dev
           git checkout dev
-          git push origin dev:main --force
+          git push origin dev:main --force || echo "Warning: Failed to push to main branch. This may require additional permissions."
+          echo "Note: To enable this functionality, ensure the GitHub Actions bot has write permissions to the main branch."
+          echo "You may need to create a personal access token (PAT) with write permissions and add it as a secret."
+
+      - name: Fallback to manual instructions
+        if: failure()
+        run: |
+          echo "## Manual Merge Instructions"
+          echo "1. Clone the repository: git clone https://github.com/scfcn/static-mirrors.git"
+          echo "2. Checkout dev branch: git checkout dev"
+          echo "3. Fetch latest changes: git fetch origin"
+          echo "4. Force push to main: git push origin dev:main --force"
+          echo ""
+          echo "This manual step is required until the GitHub Actions bot has proper permissions."
 
   # 生成语义化版本标签
   create-semantic-tag:
