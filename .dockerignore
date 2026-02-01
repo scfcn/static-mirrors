@@ -1,0 +1,60 @@
+# 后端构建忽略文件
+backend/node_modules/
+backend/vendor/
+backend/.git/
+backend/.DS_Store/
+backend/*.log
+backend/*.swp
+backend/*.swo
+backend/.env
+
+# 前端构建忽略文件
+frontend/node_modules/
+frontend/dist/
+frontend/.git/
+frontend/.DS_Store/
+frontend/*.log
+frontend/*.swp
+frontend/*.swo
+frontend/.env
+
+# 通用忽略文件
+.git/
+.gitignore
+.DS_Store/
+*.log
+*.swp
+*.swo
+.env
+.env.local
+.env.*.local
+
+# 构建产物
+dist/
+build/
+out/
+
+# 依赖目录
+node_modules/
+vendor/
+
+# 编辑器文件
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 操作系统文件
+Thumbs.db
+.DS_Store
+
+# 测试文件
+coverage/
+*.lcov
+
+# 临时文件
+tmp/
+temp/
