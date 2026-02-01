@@ -35,8 +35,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 使用最新的 Node LTS 版本运行 semantic-release
-          npx -p node@lts -c "npx semantic-release --no-ci"
+          # 直接运行 semantic-release（已在前面设置了 Node.js LTS 版本）
+          npx semantic-release --no-ci
           # 检查是否生成了新版本
           if [ -f package.json ]; then
             VERSION=$(grep "version" package.json | cut -d '"' -f 4)
