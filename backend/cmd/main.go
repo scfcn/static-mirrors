@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"static-mirrors/internal/admin"
@@ -92,6 +93,10 @@ func registerRoutes(r *gin.Engine) {
 	if adminService != nil {
 		adminService.RegisterRoutes(r.Group("/api"))
 	}
+
+	// 静态文件服务
+	r.Static("/static", "./frontend/dist")
+
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -100,20 +105,9 @@ func registerRoutes(r *gin.Engine) {
 		})
 	})
 
-	// 根路径
-	r.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"name":        "前端文件公益镜像服务",
-			"version":     "1.0.0",
-			"description": "为中国大陆开发者提供前端库镜像加速服务",
-			"sources": []string{
-				"cdn.jsdelivr.net",
-				"cdnjs.cloudflare.com",
-				"ghcr.io",
-				"registry-1.docker.io",
-				"unpkg.com",
-			},
-		})
+	// 缓存刷新路由
+	r.GET("/purge/:url", func(c *gin.Context) {
+		proxyService.HandlePurge(c)
 	})
 
 	// API路由组
@@ -257,7 +251,7 @@ func registerRoutes(r *gin.Engine) {
 		})
 	}
 
-	// 镜像服务路由
+	// 镜像服务路由 - 支持查询参数模式和路径模式
 	r.Any("/mirror", func(c *gin.Context) {
 		start := time.Now()
 
@@ -283,10 +277,45 @@ func registerRoutes(r *gin.Engine) {
 		// 记录访问统计
 		if statsService != nil {
 			duration := time.Since(start)
-			// 这里简化处理，实际应该从响应中获取字节数
 			bytes := int64(0)
 			statsService.RecordRequest(targetURL, source, bytes, duration)
 		}
+	})
+
+	// 路径代理模式 - 支持直接路径访问
+	r.Any("/:source/*path", func(c *gin.Context) {
+		start := time.Now()
+
+		// 获取源站和路径
+		source := c.Param("source")
+		path := c.Param("path")
+
+		// 处理路径代理请求
+		proxyService.HandlePathProxy(c, source, path)
+
+		// 记录访问统计
+		if statsService != nil {
+			duration := time.Since(start)
+			bytes := int64(0)
+			targetURL := fmt.Sprintf("https://%s%s", source, path)
+			statsService.RecordRequest(targetURL, source, bytes, duration)
+		}
+	})
+
+	// 前端页面服务 - 必须放在最后
+	r.NoRoute(func(c *gin.Context) {
+		// 如果不是API请求、镜像请求、健康检查或缓存刷新，返回前端页面
+		if !strings.HasPrefix(c.Request.URL.Path, "/api") &&
+			!strings.HasPrefix(c.Request.URL.Path, "/mirror") &&
+			!strings.HasPrefix(c.Request.URL.Path, "/health") &&
+			!strings.HasPrefix(c.Request.URL.Path, "/purge") &&
+			!strings.HasPrefix(c.Request.URL.Path, "/static") {
+			c.File("./frontend/dist/index.html")
+			return
+		}
+
+		// 否则返回404
+		c.JSON(404, gin.H{"error": "Page not found"})
 	})
 }
 

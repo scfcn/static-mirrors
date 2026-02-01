@@ -46,8 +46,11 @@ COPY --from=backend-builder /app/backend/static-mirrors /app/
 # 复制配置文件
 COPY config/ /app/config/
 
+# 创建必要的目录
+RUN mkdir -p /app/frontend/dist
+
 # 安装运行时依赖
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates wget
 
 # 暴露端口
 EXPOSE 1108

@@ -35,11 +35,29 @@ type SourceConfig struct {
 
 // CacheConfig 缓存配置
 type CacheConfig struct {
-	Enabled bool           `yaml:"enabled"`
-	Type    string         `yaml:"type"`
-	Redis   RedisConfig    `yaml:"redis"`
-	Memory  MemoryConfig   `yaml:"memory"`
-	TTL     CacheTTLConfig `yaml:"ttl"`
+	Enabled  bool                `yaml:"enabled"`
+	Type     string              `yaml:"type"`
+	Redis    RedisConfig         `yaml:"redis"`
+	Memory   MemoryConfig        `yaml:"memory"`
+	TTL      CacheTTLConfig      `yaml:"ttl"`
+	Strategy CacheStrategyConfig `yaml:"strategy"`
+	Purge    CachePurgeConfig    `yaml:"purge"`
+}
+
+// CacheStrategyConfig 缓存策略配置
+type CacheStrategyConfig struct {
+	LargeFileThreshold int64               `yaml:"large_file_threshold"`
+	LargeFileTTL       int64               `yaml:"large_file_ttl"`
+	NormalFileTTL      int64               `yaml:"normal_file_ttl"`
+	SmallFileTTL       int64               `yaml:"small_file_ttl"`
+	FileTypes          map[string]int64   `yaml:"file_types"`
+}
+
+// CachePurgeConfig 缓存刷新配置
+type CachePurgeConfig struct {
+	Enabled           bool `yaml:"enabled"`
+	RateLimitMinutes  int  `yaml:"rate_limit_minutes"`
+	MaxPurgeCount     int  `yaml:"max_purge_count"`
 }
 
 // RedisConfig Redis缓存配置

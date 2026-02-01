@@ -27,17 +27,43 @@ sources:
 # 缓存配置
 cache:
   enabled: true
-  type: "memory"  # memory
+  type: "redis"  # memory
   memory:
     size: 1024  # MB
   ttl:
     default: 3600  # 秒
     max: 86400    # 秒
+  # 缓存策略配置
+  strategy:
+    # 大文件阈值（字节）
+    large_file_threshold: 104857600  # 100MB
+    # 大文件缓存时间（秒）
+    large_file_ttl: 2592000  # 30天
+    # 普通文件缓存时间（秒）
+    normal_file_ttl: 432000  # 5天
+    # 小文件缓存时间（秒）
+    small_file_ttl: 86400  # 1天
+    # 文件类型缓存时间
+    file_types:
+      css: 86400  # 1天
+      js: 86400   # 1天
+      image: 604800  # 7天
+      font: 604800   # 7天
+      video: 2592000  # 30天
+      audio: 2592000  # 30天
+      archive: 2592000  # 30天
+  # 缓存刷新配置
+  purge:
+    enabled: true
+    # 刷新频率限制（分钟）
+    rate_limit_minutes: 30
+    # 最大刷新次数
+    max_purge_count: 1000
 
 # 统计配置
 stats:
   enabled: true
-  type: "sqlite"  # sqlite
+  type: "redis"  # sqlite
   sqlite:
     path: "stats.db"
 
@@ -47,8 +73,32 @@ security:
     enabled: true
     requests_per_minute: 60
   blocked_urls:
-    - "*.malicious.com"
-    - "/harmful/path"
+    - "cdn.jsdelivr.net/"
+    - "cdn.jsdelivr.net/login"
+    - "cdn.jsdelivr.net/signin"
+    - "cdn.jsdelivr.net/signup"
+    - "cdn.jsdelivr.net/register"
+    - "cdn.jsdelivr.net/account"
+    - "cdn.jsdelivr.net/user"
+    - "cdn.jsdelivr.net/profile"
+    - "cdn.jsdelivr.net/settings"
+    - "cdn.jsdelivr.net/admin"
+    - "cdn.jsdelivr.net/dashboard"
+    - "cdn.jsdelivr.net/auth"
+    - "cdn.jsdelivr.net/oauth"
+    - "cdnjs.cloudflare.com/"
+    - "cdnjs.cloudflare.com/login"
+    - "cdnjs.cloudflare.com/signin"
+    - "cdnjs.cloudflare.com/signup"
+    - "cdnjs.cloudflare.com/register"
+    - "cdnjs.cloudflare.com/account"
+    - "cdnjs.cloudflare.com/user"
+    - "cdnjs.cloudflare.com/profile"
+    - "cdnjs.cloudflare.com/settings"
+    - "cdnjs.cloudflare.com/admin"
+    - "cdnjs.cloudflare.com/dashboard"
+    - "cdnjs.cloudflare.com/auth"
+    - "cdnjs.cloudflare.com/oauth"
 
 # 日志配置
 log:
